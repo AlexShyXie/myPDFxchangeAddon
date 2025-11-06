@@ -33,7 +33,7 @@ var myIcon = {count:0, width:40, height:40, read:function(nBytes=this.data.lengt
 app.addToolButton({
     cName: 'syncDocs.btn',
     oIcon: myIcon,
-    //cLabel: __( "Sync", 'scrollSync'),
+    cLabel: __( "ScrollSync", 'scrollSync'),
     cExec: 'scrollSync();',
     cTooltext: __( "Toggle synchronizing the view of two documents. Select tool again to cancel sync.", 'scrollSync'),
     cEnable: 'event.rc = (event.target != null)', // at least one document
