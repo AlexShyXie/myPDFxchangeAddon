@@ -56,7 +56,6 @@ var trustedReadFile = app.trustedFunction((filePath) => {
 // ===================================================================
 // 核心快照函数 (增强版)
 // ===================================================================
-
 // 【核心】获取当前所有注释的"内容快照"（用于比较）
 function getAnnotationsSnapshot(doc) {
     var snapshot = "";
@@ -163,115 +162,201 @@ function getAnnotationsSnapshot(doc) {
         }
     }
 	//console.println(snapshot);
-    return snapshot.trim();
+    
+    // 【新增】在返回前对快照行进行排序，以解决顺序不一致问题
+    var snapshotLines = snapshot.trim().split('\n');
+    snapshotLines.sort();
+    return snapshotLines.join('\n');
 }
 
-// 【核心】解析XFDF字符串，生成和"当前快照"格式一致的字符串
-function parseXFDFToSnapshot(xfdfString) {
-    var snapshot = "";
-    var annotRegex = /<(highlight|squiggly|underline|strikeout|text|freetext|square|circle|line|polygon|polyline|ink)[^>]*>([\s\S]*?)<\/\1>/gi;
-    var match;
+// ===================================================================
+// 【新增】轻量级 XFDF 解析库
+var XFDFParser = {
+	// 在 3ExportImportFunction.js 的 XFDFParser 对象中，替换为这个最终版
+	getTextContent: function(annotBlock) {
+		// 1. 首先检查是否是 Text 注释
+		if (/<text[^>]*>/i.test(annotBlock)) {
+			// 2. 尝试查找 <contents-richtext> 块
+			var richTextMatch = annotBlock.match(/<contents-richtext>([\s\S]*?)<\/contents-richtext>/i);
+			// console.println(richTextMatch);
+			// 3. 如果找到了，说明这是一个有内容的 Text 注释（如便贴）
+			if (richTextMatch) {
+				var bodyMatch = richTextMatch[1].match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+				if (bodyMatch) {
+					var spanMatches = bodyMatch[1].match(/<span[^>]*>([\s\S]*?)<\/span>/gi);
+					if (spanMatches) {
+						var textParts = [];
+						for (var i = 0; i < spanMatches.length; i++) {
+							var spanTextMatch = spanMatches[i].match(/<span[^>]*>([\s\S]*?)<\/span>/i);
+							if (spanTextMatch) {
+								var decodedText = decodeHtmlEntities(spanTextMatch[1]);
+								if (decodedText) {
+									textParts.push(decodedText.trim());
+								}
+							}
+						}
+						// 返回拼接后的内容
+						return textParts.join(' ');
+					}
+				}
+			}
+			
+			// 4. 如果是 Text 注释，但没有找到 <contents-richtext>，
+			//    那么它就是一个没有内容的标记（如“已接受”）。
+			//    我们明确返回一个空字符串。
+			return "";
+		}
+		
+		// 5. 如果不是 Text 注释，则按原逻辑处理 <span>（用于 highlight 等）
+		var spanMatches = annotBlock.match(/<span[^>]*>([\s\S]*?)<\/span>/gi);
+		if (spanMatches) {
+			var textParts = [];
+			for (var i = 0; i < spanMatches.length; i++) {
+				var spanTextMatch = spanMatches[i].match(/<span[^>]*>([\s\S]*?)<\/span>/i);
+				if (spanTextMatch) {
+					var decodedText = decodeHtmlEntities(spanTextMatch[1]);
+					if (decodedText) {
+						textParts.push(decodedText.trim());
+					}
+				}
+			}
+			return textParts.join(' ');
+		}
 
-    while ((match = annotRegex.exec(xfdfString)) !== null) {
-        var annotBlock = match[0];
-        var annotType = match[1];
+		// 6. 如果什么都没找到，返回空字符串
+		return "";
+	},
 
-        // --- 内容解析 ---
-        var contents = "";
-        var spanMatches = annotBlock.match(/<span[^>]*>([\s\S]*?)<\/span>/gi);
-        if (spanMatches) {
-            for (var i = 0; i < spanMatches.length; i++) {
-                var textMatch = spanMatches[i].match(/<span[^>]*>([\s\S]*?)<\/span>/i);
-                if (textMatch) {
-                    var decodedText = decodeHtmlEntities(textMatch[1]);
-                    // 【新增】处理段落分隔和换行符
-                    decodedText = decodedText
-                        .replace(/&#13;/g, '')                 // 去除XML中的回车符
-                        .replace(/\r\n/g, ' ')                 // 将CRLF替换为空格
-                        .replace(/\r/g, ' ')                   // 将CR替换为空格
-                        .replace(/\n/g, ' ')                   // 将LF替换为空格
-                        .trim();                               // 去除首尾空格
-                    
-                    if (decodedText) {
-                        // 如果不是第一个span，且前一个span不是以标点符号结尾，添加空格
-                        if (contents && !/[.!?]$/.test(contents)) {
-                            contents += " ";
-                        }
-                        contents += decodedText;
-                    }
-                }
-            }
-        }
-        
-        if (!contents && ['square', 'circle', 'line', 'polygon', 'polyline', 'ink'].includes(annotType.toLowerCase())) {
-            contents = "";
-        }
+    /**
+     * 从注释块中提取指定属性的值
+     * @param {string} annotBlock - 单个注释的XML字符串
+     * @param {string} attrName - 属性名，例如 'rect', 'color', 'subject'
+     * @returns {string|null} 属性值，未找到则返回 null
+     */
+    getAttribute: function(annotBlock, attrName) {
+        var regex = new RegExp(attrName + '="([^"]+)"', 'i');
+        var match = annotBlock.match(regex);
+        return match ? match[1] : null;
+    },
 
-        // --- 坐标解析 ---
-        var rect = "";
-        var rectMatch = annotBlock.match(/rect="([^"]+)"/i);
-        if (rectMatch) {
-            var rectArray = rectMatch[1].split(',');
-            rect = formatRect(rectArray);
-        }
-
-        var color = "undefined";
-        var colorMatch = annotBlock.match(/color="([^"]+)"/i);
-        if (colorMatch) {
-            color = colorMatch[1];
-        }
-
-        // --- 【增强】构建快照行，增加额外属性 ---
-        var snapshotLine = annotType.charAt(0).toUpperCase() + annotType.slice(1) + "|" + contents + "|" + rect + "|" + color;
-        
-        // 处理图形注释的 width 属性
-        if (['square', 'circle'].includes(annotType.toLowerCase())) {
-            var widthMatch = annotBlock.match(/width="([^"]+)"/i);
-            var width = widthMatch ? widthMatch[1] : "1";
-            snapshotLine += "|" + width;
-        }
-
-        // --- 【新增】从 XFDF 中解析额外属性 ---
-        var extraAttrs = [];
-        // 解析 flags 属性
+    /**
+     * 检查注释块中是否存在某个标志（flags）
+     * @param {string} annotBlock - 单个注释的XML字符串
+     * @param {string} flag - 标志名，例如 'locked'
+     * @returns {boolean}
+     */
+    hasFlag: function(annotBlock, flag) {
         var flagsMatch = annotBlock.match(/flags="([^"]+)"/i);
         if (flagsMatch) {
-            var flags = flagsMatch[1].split(',');
-            if (flags.includes('locked')) {
-                extraAttrs.push("lock:true");
+            return flagsMatch[1].split(',').includes(flag);
+        }
+        return false;
+    },
+    
+    /**
+     * 检查注释的 popup 是否默认打开
+     * @param {string} annotBlock - 单个注释的XML字符串
+     * @returns {boolean}
+     */
+    isPopupOpen: function(annotBlock) {
+        return /<popup[^>]*open="yes"[^>]*>/i.test(annotBlock);
+    }
+};
+
+function parseXFDFToSnapshot(xfdfString) {
+    // console.println("===== [调试] parseXFDFToSnapshot 开始 =====");
+    var snapshot = "";
+    
+    var tagNames = ["highlight", "squiggly", "underline", "strikeout", "text", "freetext", "square", "circle", "line", "polygon", "polyline", "ink"];
+    // 【关键修复】修改正则，确保 (/?) 能捕获到结尾的 /
+    // 使用 \s* 来匹配属性和结尾的空格，然后用 (\s*/?) 来捕获结尾的空格和 /
+    var tagRegex = new RegExp("<(" + tagNames.join("|") + ")([^>]*?)(\s*\/?>)", "gi");
+
+    var annotBlocks = [];
+    var match;
+
+    while ((match = tagRegex.exec(xfdfString)) !== null) {
+        var fullTag = match[0];
+        var tag = match[1];
+        var attributes = match[2];
+        var endPart = match[3]; // 这里会捕获到 " />" 或 ">"
+        
+        var isSelfClosing = endPart.includes('/');
+        var startIndex = match.index;
+        var endIndex = startIndex + fullTag.length;
+
+        // console.println("\n--- [调试] 找到标签: " + fullTag + " (类型: " + tag + ", 自闭合: " + isSelfClosing + ") ---");
+
+        if (!isSelfClosing) {
+            var closeTag = '</' + tag + '>';
+            var closeTagIndex = xfdfString.indexOf(closeTag, endIndex);
+            if (closeTagIndex === -1) {
+                console.println("[调试] 格式错误：找不到 " + tag + " 的闭合标签，跳过。");
+                tagRegex.lastIndex = endIndex;
+                continue;
             }
+            endIndex = closeTagIndex + closeTag.length;
         }
-        // 解析 opacity 属性
-        var opacityMatch = annotBlock.match(/opacity="([^"]+)"/i);
-        if (opacityMatch) {
-            var opacity = parseFloat(opacityMatch[1]);
-            if (opacity !== 1) {
-                extraAttrs.push("opacity:" + opacity.toFixed(2));
-            }
+
+        var annotBlock = xfdfString.substring(startIndex, endIndex);
+        annotBlocks.push(annotBlock);
+        // console.println("[调试] 提取块成功，当前共 " + annotBlocks.length + " 个块。");
+
+        tagRegex.lastIndex = endIndex;
+    }
+    
+    // console.println("\n===== [调试] 开始处理 " + annotBlocks.length + " 个注释块 =====");
+
+    // --- 后续处理逻辑保持不变 ---
+    for (var i = 0; i < annotBlocks.length; i++) {
+        var annotBlock = annotBlocks[i];
+        // console.println("\n--- [调试] 处理块 #" + (i+1) + " ---");
+        
+        var typeMatch = annotBlock.match(/<(highlight|squiggly|underline|strikeout|text|freetext|square|circle|line|polygon|polyline|ink)/i);
+        if (!typeMatch) continue;
+        var annotType = typeMatch[1];
+        // console.println("[调试] 类型: " + annotType);
+
+        var contents = XFDFParser.getTextContent(annotBlock);
+        // console.println("[调试] 提取的内容: '" + contents + "'");
+        
+        var rect = XFDFParser.getAttribute(annotBlock, 'rect');
+        var color = XFDFParser.getAttribute(annotBlock, 'color') || "undefined";
+        var subject = XFDFParser.getAttribute(annotBlock, 'subject');
+        var width = XFDFParser.getAttribute(annotBlock, 'width');
+
+        var formattedRect = rect ? formatRect(rect.split(',')) : "";
+        var snapshotLine = annotType.charAt(0).toUpperCase() + annotType.slice(1) + "|" + contents + "|" + formattedRect + "|" + color;
+
+        if (['square', 'circle'].includes(annotType.toLowerCase())) {
+            snapshotLine += "|" + (width || "1");
         }
-        // 解析 popup 的 open 属性
-        var popupMatch = annotBlock.match(/<popup[^>]*open="yes"[^>]*>/i);
-        if (popupMatch) {
-            extraAttrs.push("popupOpen:true");
-        }
-        // 解析 subject 属性
-        var subjectMatch = annotBlock.match(/subject="([^"]+)"/i);
-        if (subjectMatch) {
-            var subject = decodeHtmlEntities(subjectMatch[1]);
-            // 对 subject 进行转义
+
+        var extraAttrs = [];
+        if (XFDFParser.hasFlag(annotBlock, 'locked')) extraAttrs.push("lock:true");
+        var opacity = XFDFParser.getAttribute(annotBlock, 'opacity');
+        if (opacity && parseFloat(opacity) !== 1) extraAttrs.push("opacity:" + parseFloat(opacity).toFixed(2));
+        if (XFDFParser.isPopupOpen(annotBlock)) extraAttrs.push("popupOpen:true");
+        if (subject) {
             var escapedSubject = subject.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
             extraAttrs.push("subject:" + escapedSubject);
         }
 
-        // 将额外属性拼接到快照行
-        if (extraAttrs.length > 0) {
-            snapshotLine += "|" + extraAttrs.join('|');
-        }
+        if (extraAttrs.length > 0) snapshotLine += "|" + extraAttrs.join('|');
         
+        // console.println("[调试] 生成的快照行: " + snapshotLine);
         snapshot += snapshotLine + "\n";
     }
-	//console.println(snapshot);
-    return snapshot.trim();
+
+    var snapshotLines = snapshot.trim().split('\n');
+    snapshotLines.sort();
+    var finalSnapshot = snapshotLines.join('\n');
+
+    // console.println("\n===== [调试] 最终快照 =====");
+    // console.println(finalSnapshot);
+    // console.println("===== [调试] parseXFDFToSnapshot 结束 =====\n");
+
+    return finalSnapshot;
 }
 
 
@@ -287,5 +372,5 @@ function normalizeSnapshot(snapshot) {
         .replace(/\n+/g, '\n')                    // 将多个连续换行符合并为一个
         .trim();                                  // 去除首尾换行符
 }
-
+   
 //console.println("ExportImportFunction.js (增强属性版) 已加载。");
