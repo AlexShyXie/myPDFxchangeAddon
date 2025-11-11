@@ -13,6 +13,7 @@ Version3设置笔记文件夹自动导入导出（无导入时注释要手动导
 插件会在你打开PDF时，自动检查你指定的笔记文件夹里是否有对应的、非空的XFDF文件。如果有，就自动导入并激活监控。如果没有，或者文件是空的，就等待你手动操作来激活，当你在PDF上做了注释并使用插件提供的按钮导出，就会激活监控，之后只要注释有变化，就会自动导出xfdf。
 
 包括以下3个新按钮：
+
 ![](vx_images/150455425990115.png)
 
 ## 快捷键
@@ -63,16 +64,20 @@ Windows Registry Editor Version 5.00
 annotReport.js
 
 [viewtopic.php?t=46293](https://forum.pdf-xchange.com/viewtopic.php?t=46293)
+
 工具将生成 PDF 中标记的简单文本摘要，作为 PDF 文本报告，按任何标记参数进行摘要。它可以输出标记的文本（内容属性），或者计算标记（对于尺寸、周长和面积工具，或者如果它识别数字或货币，则合计 - Σ - 总计）。
+
 ![](vx_images/105995227185015.png)
 该工具受论坛帖子 [viewtopic.php?t=45812](https://forum.pdf-xchange.com/viewtopic.php?t=45812) 和 [viewtopic.php?t=27327](https://forum.pdf-xchange.com/viewtopic.php?t=27327) 启发  
   
 **使用方法 ，在注释页面**
   
 如果你只想总结选定的标注，首先选择标注，然后运行该工具（评论 > 报告评论...）
+
 ![](vx_images/243845487578647.png)
 
 它会打开一个对话框：
+
 ![](vx_images/536644982040897.png)
 **要包含的批注**  
 
@@ -128,6 +133,7 @@ translationData.bkmNameReg.json
 从列表中选择一个步骤（ _对于版本低于 387 的版本_ ），然后按“编辑…”。 因为_版本低于 387 的 PDF XChange_ 不允许脚本知道何时选中了步骤，你必须按编辑按钮来更新右侧的表单。）  
 
 在对话框的右侧是此步骤的选项。
+
 ![](vx_images/1204477209626.png)
 
 从顶部开始：
