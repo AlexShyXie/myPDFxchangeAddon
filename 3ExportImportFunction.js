@@ -6,6 +6,65 @@
 // 辅助函数 (保持不变)
 // ===================================================================
 
+
+/**
+ * 通用的配置文件加载器 (受信任版本)
+ * @param {string} configFileName - 配置文件的文件名，例如 'myConfig.json'
+ * @returns {object|null} - 解析后的配置对象，如果失败则返回 null
+ */
+var loadConfig = app.trustedFunction( function(configFileName) {
+    if (!configFileName) {
+        console.println("错误：配置文件名不能为空。");
+        return null;
+    }
+
+    // 在受信任函数内部，我们才能安全地使用 beginPriv/endPriv
+    app.beginPriv();
+
+    let configContent = "";
+    let pathLocations = ["user", "app"]; // 优先从用户文件夹读取
+
+    try {
+        for (let location of pathLocations) {
+            try {
+                // 拼接出配置文件的完整路径
+                let filePath = app.getPath(location, "javascript") + "/" + configFileName;
+                console.println("正在尝试读取配置文件: " + filePath);
+                
+                // 读取文件内容
+                configContent = util.readFileIntoStream(filePath);
+
+                // util.readFileIntoStream 即使文件不存在也会返回一个对象
+                // 所以需要用 util.stringFromStream 转换并检查内容
+                let contentStr = util.stringFromStream(configContent);
+                if (contentStr) {
+                    console.println("成功读取到文件内容，开始解析...");
+                    try {
+                        // 解析 JSON
+                        let configObject = JSON.parse(contentStr);
+                        console.println("配置文件 '" + configFileName + "' 加载并解析成功！");
+                        app.endPriv(); // 成功后结束特权
+                        return configObject;
+                    } catch (parseError) {
+                        console.println("错误：配置文件 '" + configFileName + "' 不是有效的JSON格式。");
+                        console.println("解析错误: " + parseError.message);
+                    }
+                } else {
+                    console.println("文件为空或未找到，尝试下一个位置...");
+                }
+            } catch (e) {
+                console.println("在读取 '" + configFileName + "' 时发生路径或其他错误: " + e.message);
+            }
+        }
+    } catch (outerError) {
+        console.println("配置加载过程中发生严重错误: " + outerError.message);
+    }
+
+    console.println("错误：在所有标准位置都未能找到或解析配置文件 '" + configFileName + "'。");
+    app.endPriv(); // 失败后也要结束特权
+    return null;
+});
+
 // 【新增】通用的HTML实体解码函数
 function decodeHtmlEntities(str) {
     if (!str) return str;

@@ -5,12 +5,37 @@
 // 导出后dirty=false
 // ===================================================================
 
+
+
+
 // --- 全局配置 ---
-var ANNOTATION_FOLDER = "G:\\OneDrive - xiehui1573\\Appdata_my\\VnoteData\\16_PDFxchangeAnnot"; // 你的笔记文件夹，使用Windows标准反斜杠
+//var ANNOTATION_FOLDER = "G:\\OneDrive - xiehui1573\\Appdata_my\\VnoteData\\12_PDFxchangeAnnot"; // 你的笔记文件夹，使用Windows标准反斜杠
+
+
 
 // --- 全局变量 ---
 var pollTimer;
 var docSyncState = new Map(); // 存储每个文档的同步状态档案
+
+
+// --- 1. 加载配置 ---
+var appConfig = loadConfig('myAppConfig.json'); //来自3ExportImportFunction.js
+
+// --- 2. 检查并使用配置 ---
+if (appConfig) {
+    console.println("--- 配置加载成功 ---");
+    // 直接使用配置项
+    var ANNOTATION_FOLDER = appConfig.ANNOTATION_FOLDER;
+
+    console.println("注释文件夹: " + ANNOTATION_FOLDER);
+
+
+} else {
+    console.println("--- 配置加载失败，使用默认值 ---");
+    // 如果加载失败，设置一个默认值
+    var ANNOTATION_FOLDER = "G:\\OneDrive - xiehui1573\\Appdata_my\\VnoteData\\12_PDFxchangeAnnot";
+
+}
 
 // ===================================================================
 // 0. 【新增】工具函数：生成唯一的XFDF路径
@@ -20,6 +45,9 @@ var docSyncState = new Map(); // 存储每个文档的同步状态档案
  * @param {string} pdfPath - PDF文件的路径，例如 /E/Downloads/ProjectA/report.pdf
  * @returns {string} - 生成的XFDF路径，例如 /E/Downloads/ProjectA/ProjectA_report_Annotations.xfdf
  */
+
+
+
 function generateXfdfPath(pdfPath) {
     if (!pdfPath) return "";
 
@@ -32,7 +60,7 @@ function generateXfdfPath(pdfPath) {
     var parentFolderName = pdfPath.substring(parentFolderSeparatorIndex + 1, separatorIndex);
 
     // 3. 【关键】组合新的文件名：父文件夹名_原文件名_Annotations.xfdf
-    var newFileName = parentFolderName + "_" + fileNameWithoutExt + "_Annotations.xfdf";
+    var newFileName = parentFolderName + "/" + fileNameWithoutExt + "_Annotations.xfdf";
 
     // 4. 【复用】将 ANNOTATION_FOLDER 转换为Unix风格路径
     var windowsPath = ANNOTATION_FOLDER.replace(/\\\\/g, "\\");
@@ -71,9 +99,9 @@ const getAllDocs = app.trustedFunction(() => {
     return app.activeDocs;
 });
 
+
 // 注意: getAnnotationsSnapshot, parseXFDFToSnapshot, trustedReadFile 这些函数
 // 需要从你的函数库 (3ExportImportFunction.js) 中复制过来，或者确保该库已加载。
-
 // ===================================================================
 // 1. 核心同步逻辑 (处理单个文档)
 // ===================================================================
@@ -93,8 +121,14 @@ function processDocument(doc) {
 	if (!state) {
 		console.println("检查新文档: " + doc.documentFileName);
 		try {
-			var xfdfContent = trustedReadFile(xfdfPath);
-
+			// --- 【调试实验】开始 ---
+			try {
+				var xfdfContent = trustedReadFile(xfdfPath);
+			}catch (e){
+				console.println(">> 读取xfdf文件失败，大概相关路径尚不存在，手动设置xfdfContent为空");
+				xfdfContent = "";
+			}
+			// --- 【调试实验】结束 ---
 			if (typeof xfdfContent !== "string" || xfdfContent.length === 0 || !xfdfContent.trim()) {
 				console.println(">> 未找到或外部XFDF文件为空，跳过导入。");
 				docSyncState.set(doc, {
@@ -187,9 +221,79 @@ function manualExportAndActivate(doc) {
         return;
     }
 
-    // 【修改】使用新的函数生成XFDF路径
-    var xfdfPath = generateXfdfPath(doc.path);
-    console.println("手动导出目标XFDF路径: " + xfdfPath);
+    // --- 【新增】路径检查逻辑 ---
+    var targetXfdfPath = "";
+    var configFolderExists = false;
+    
+    // 尝试读取配置文件夹路径（通过尝试读取一个可能不存在的文件来触发错误，从而判断目录是否存在）
+    // 或者如果你有更直接的判断文件夹存在的方法也可以替换这里
+    try {
+        // 假设 trustedReadFile 在路径不存在时会抛出异常或返回空
+        // 我们尝试构造一个测试路径，或者直接对目标路径进行操作前的预判
+        // 这里简单处理：直接尝试生成路径，然后在导出时捕获异常，或者预先测试
+        // 更好的方式是利用你的 trustedReadFile 尝试读取 ANNOTATION_FOLDER 根目录下的一个占位文件
+        // 这里我们采用一种简化的逻辑：假设路径无效，让用户选择
+        
+        var windowsPath = ANNOTATION_FOLDER.replace(/\\\\/g, "\\");
+        var unixPath = windowsPath.replace(/^([A-Z]):\\/, '/$1/');
+        if (!unixPath.endsWith("/")) { unixPath += "/"; }
+        
+        // 尝试列出目录或读取（取决于你的安全沙箱限制，通常直接检查比较困难）
+        // 这里我们采用“探测尝试”：尝试生成最终路径
+        var testPath = generateXfdfPath(doc.path);
+        
+        // 简单的 heuristic：检查路径是否包含 ANNOTATION_FOLDER
+        // 这里主要依赖 trustedReadFile 的异常或后续导出的异常
+        // 为了实现你的需求，我们主动抛出一个测试：
+        var testRead = "";
+        try {
+             // 尝试读取文件夹本身或其中任意文件，如果报错则可能不存在
+             // 注意：这在 JS 沙箱中可能受限，所以我们改为直接提示用户选择
+             // 这里我们假设如果 ANNOTATION_FOLDER 配置的是一个网络路径或脱机路径，可能不存在
+             testRead = trustedReadFile(unixPath); 
+        } catch (e) {
+             // 如果读取根目录报错，我们假定路径不存在
+             configFolderExists = false;
+        }
+        
+        // 如果无法确认路径存在（或者你想强制检查），弹出提示
+        // 这里的逻辑是：如果 trustedReadFile 无法读取该路径，则认为不存在
+        if (!testRead && !configFolderExists) {
+             // 可能是路径不存在，也可能是空文件夹，这里为了安全，我们询问用户
+             // 注意：如果文件夹存在但为空，trustedReadFile 可能也会失败，这正好触发我们的“备用方案”询问
+             
+             var response = app.alert({
+                cMsg: "配置的注释文件夹路径似乎不存在或无法访问：\n" + ANNOTATION_FOLDER + "\n\n是：改为将 XFDF 文件保存在当前 PDF 的同一路径下？\n否：取消导出操作。",
+                cTitle: "路径警告",
+                nIcon: 1, // 警告图标
+                nType: 2  // 是/否按钮
+             });
+             
+             if (response === 4) { // 用户点击"是"
+                 // 生成与 PDF 同路径的 XFDF 文件名
+                 var pdfPath = doc.path;
+                 var separatorIndex = pdfPath.lastIndexOf("/");
+                 var fileNameWithoutExt = pdfPath.substring(separatorIndex + 1, pdfPath.lastIndexOf("."));
+                 targetXfdfPath = pdfPath.substring(0, separatorIndex + 1) + fileNameWithoutExt + "_Annotations.xfdf";
+             } else {
+                 // 用户点击"否"，取消操作
+                 console.println("用户取消导出操作。");
+                 return;
+             }
+        } else {
+            // 路径存在，使用正常逻辑
+            targetXfdfPath = generateXfdfPath(doc.path);
+        }
+    } catch (e) {
+        console.println("路径检查出错: " + e.message);
+        // 出错时也询问用户
+        targetXfdfPath = generateXfdfPath(doc.path); // fallback to original logic or handle error
+    }
+    // --- 【路径检查逻辑结束】 ---
+
+    // 【修改】使用确定好的 targetXfdfPath
+    // var xfdfPath = generateXfdfPath(doc.path); // 原来的逻辑
+    var xfdfPath = targetXfdfPath; 
 
     try {
         var currentSnapshot = getAnnotationsSnapshot(doc);
@@ -284,6 +388,11 @@ function manualSetDirtyFalse(doc)
 	console.println("已手动清除文档保存状态！");
 }
 
+function ctrlsHintfun()
+{
+	app.alert({ cMsg: "Ctrl+S 已禁用，想快捷导出 xfdf 请使用 Alt+W ", cTitle: "Ctrl+S 已禁用", nIcon: 0 });
+}
+
 // ===================================================================
 // 5. UI 和启动
 // ===================================================================
@@ -346,10 +455,22 @@ app.addToolButton({
     cLabel: '导出并激活同步',
     cIconID: 'cmd.comments.export',
     cTooltext: '智能导出所有注释到同目录下的xfdf文件',
-    cHotkey: 'Ctrl+S',
+    //cHotkey: 'Alt+Q',
     cParent: 'Home',
     cExec: 'manualExportAndActivate(this);'
 });
+
+// 按钮: Ctrl+S提示（绑定Alt+Q的提示功能）
+app.addToolButton({
+    cName: 'ctrlSHintButton',
+    cLabel: 'Ctrl+S已禁用',
+	cIconID: 'cmd.saveCurrentSessionToFile',
+    cTooltext: '提示：请使用 Alt+W 快捷导出 XFDF',
+    cHotkey: 'Ctrl+S',
+    cExec: 'ctrlsHintfun();',
+    cParent: 'Home'
+});
+
 
 // 启动监控！
 startPolling();

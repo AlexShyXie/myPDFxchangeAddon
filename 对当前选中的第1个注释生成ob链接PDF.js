@@ -107,20 +107,20 @@ function getSelectedAnnotationInfo() {
 // --- UI注册（保持不变） ---
 app.addToolButton({
     cName: 'getSelectedAnnotationInfoPDF',
-    cLabel: '为选中的注释生成ObLinkPDF',
-    cIconID: 'cmd.linksView.wrapTitles',
-    cTooltext: '为选中的第1个注释生成ObLink',
+    cLabel: '生成PDFObLink',
+    cIconID: 'cmd.linksView.export',
+    cTooltext: '为选中的第1个注释生成PDFObLink',
     cExec: 'getSelectedAnnotationInfo(this);'
 });
 
 app.addMenuItem({
     cName: "getSelectedAnnotationInfoMenuPDF",
-    cUser: "为选中的注释生成ObLinkPDF",
-    cLabel: "为选中的注释生成ObLinkPDF",
-    cTooltext: '为选中的第1个注释生成ObLinkPDF',
-    cIconID: 'cmd.linksView.wrapTitles',
+    cUser: "为选中的注释生成PDFObLink",
+    cLabel: "为选中的注释生成PDFObLink",
+    cTooltext: '为选中的第1个注释生成PDFObLink',
+    cIconID: 'cmd.linksView.export',
     cExec: "getSelectedAnnotationInfo(this)",
-    cHotkey: 'Alt+G',
+    cHotkey: 'Alt+J',
     cParent: 'Home',
     nPos: 'rbar.home.protec',
     cRbParent: 'JS:QuickAccess',
