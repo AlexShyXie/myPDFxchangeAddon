@@ -5,10 +5,13 @@
 
 使用方式就是将相关js文件放入PDF-Xchange Editor 的脚本文件夹，即PDFedit.exe下的JavaScripts文件夹下，没有这个文件夹就创建出来。
 
-# Version3设置笔记文件夹自动导入导出（无导入时注释要手动导出才能激活自动同步）
+# Version4设置笔记文件夹自动导入导出
 插件文件：
 3ExportImportFunction.js
-Version3设置笔记文件夹自动导入导出（无导入时注释要手动导出才能激活自动同步）.js
+myAppConfig.json
+Version4设置笔记文件夹自动导入导出.js
+
+详细介绍：[PDF阅读器跨设备同步神器！几百兆文件只传几十KB注释，PDF-XChange Editor脚本实现注释独立存储](https://zhuanlan.zhihu.com/p/2017317322226967673)
 
 插件会在你打开PDF时，自动检查你指定的笔记文件夹里是否有对应的、非空的XFDF文件。如果有，就自动导入并激活监控。如果没有，或者文件是空的，就等待你手动操作来激活，当你在PDF上做了注释并使用插件提供的按钮导出，就会激活监控，之后只要注释有变化，就会自动导出xfdf。
 
