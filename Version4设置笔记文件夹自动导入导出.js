@@ -2,21 +2,17 @@
 // PDF-Xchange Editor JavaScript: 按需激活的智能注释同步脚本 (唯一文件名版)
 //（无导入时注释要手动导出才能激活自动同步）
 // 根据PDF路径父文件夹生成唯一的XFDF文件路径，包含父文件夹名。
-// 导出后dirty=false
+// PDF-Xchange Editor JavaScript: 智能注释同步脚本 (整合版)
+// 功能1: 集中存储模式 (原功能)
+// 功能2: 同级目录模式 (新增功能)
 // ===================================================================
 
-
-
-
 // --- 全局配置 ---
-//var ANNOTATION_FOLDER = "G:\\OneDrive - xiehui1573\\Appdata_my\\VnoteData\\12_PDFxchangeAnnot"; // 你的笔记文件夹，使用Windows标准反斜杠
-
-
+//var ANNOTATION_FOLDER = "G:\\OneDrive - xiehui1573\\Appdata_my\\VnoteData\\12_PDFxchangeAnnot"; // 你的笔记文件夹
 
 // --- 全局变量 ---
 var pollTimer;
 var docSyncState = new Map(); // 存储每个文档的同步状态档案
-
 
 // --- 1. 加载配置 ---
 var appConfig = loadConfig('myAppConfig.json'); //来自3ExportImportFunction.js
@@ -26,28 +22,22 @@ if (appConfig) {
     console.println("--- 配置加载成功 ---");
     // 直接使用配置项
     var ANNOTATION_FOLDER = appConfig.ANNOTATION_FOLDER;
-
     console.println("注释文件夹: " + ANNOTATION_FOLDER);
-
-
 } else {
     console.println("--- 配置加载失败，使用默认值 ---");
     // 如果加载失败，设置一个默认值
     var ANNOTATION_FOLDER = "G:\\OneDrive - xiehui1573\\Appdata_my\\VnoteData\\12_PDFxchangeAnnot";
-
 }
 
 // ===================================================================
 // 0. 【新增】工具函数：生成唯一的XFDF路径
 // ===================================================================
+
 /**
  * 根据PDF路径生成唯一的XFDF文件路径，包含父文件夹名。
  * @param {string} pdfPath - PDF文件的路径，例如 /E/Downloads/ProjectA/report.pdf
  * @returns {string} - 生成的XFDF路径，例如 /E/Downloads/ProjectA/ProjectA_report_Annotations.xfdf
  */
-
-
-
 function generateXfdfPath(pdfPath) {
     if (!pdfPath) return "";
 
@@ -74,6 +64,17 @@ function generateXfdfPath(pdfPath) {
     return xfdfPath;
 }
 
+/**
+ * [新增功能] 生成PDF同级目录的XFDF路径
+ */
+function generateSiblingXfdfPath(pdfPath) {
+    if (!pdfPath) return "";
+    // 直接替换扩展名为 .xfdf
+    if (pdfPath.toLowerCase().endsWith(".pdf")) {
+        return pdfPath.substring(0, pdfPath.length - 4) + "_Annotations.xfdf";
+    }
+    return pdfPath + "_Annotations.xfdf";
+}
 
 // ===================================================================
 // 3. 受信任函数和工具函数 (复用自你的脚本)
@@ -103,11 +104,10 @@ const getAllDocs = app.trustedFunction(() => {
 // 注意: getAnnotationsSnapshot, parseXFDFToSnapshot, trustedReadFile 这些函数
 // 需要从你的函数库 (3ExportImportFunction.js) 中复制过来，或者确保该库已加载。
 // ===================================================================
-// 1. 核心同步逻辑 (处理单个文档)
+// 2. 核心同步逻辑
 // ===================================================================
 function processDocument(doc) {
     if (!doc || !doc.path) return;
-
     var pdfPath = doc.path;
     
     // 【修改】使用新的函数生成XFDF路径
@@ -145,7 +145,8 @@ function processDocument(doc) {
             docSyncState.set(doc, {
                 isActive: true,
                 baselineSnapshot: getAnnotationsSnapshot(doc),
-                importChecked: true
+                importChecked: true,
+                targetPath: xfdfPath  // 【关键修复】必须记录导入时的路径，供后续自动导出使用
             });
 			doc.dirty = false; 
             console.println(">> 导入完成，同步已激活。");
@@ -155,22 +156,23 @@ function processDocument(doc) {
 		}
 		return;
 	}
-
-    // --- 情况2: 该文档已被激活同步，执行监控和自动导出 ---
+     // --- 情况2: 该文档已被激活同步，执行监控和自动导出 ---
     if (state && state.isActive) {
         var currentSnapshot = getAnnotationsSnapshot(doc);
         if (currentSnapshot !== state.baselineSnapshot) {
-            console.println(">> 检测到注释变化，正在自动导出: " + doc.documentFileName);
+            // 使用文档记录的路径进行保存（可能是集中路径，也可能是同级路径）
+            var xfdfPath = state.targetPath; 
+            console.println(">> 检测到注释变化，正在自动导出: " + xfdfPath);
             privExportXFDF(doc, xfdfPath);
             state.baselineSnapshot = currentSnapshot;
-			doc.dirty = false;
+            doc.dirty = false;
             console.println(">> 自动导出完成。");
         }
     }
 }
 
 // ===================================================================
-// 2. 全局轮循管理
+// 3. 全局轮循管理
 // ===================================================================
 function pollAllDocs() {
     try {
@@ -182,7 +184,6 @@ function pollAllDocs() {
                 console.println("已清理已关闭文档的同步状态。");
             }
         }
-
         if (!allOpenDocs || allOpenDocs.length === 0) return;
         for (var i = 0; i < allOpenDocs.length; i++) {
             processDocument(allOpenDocs[i]);
@@ -194,7 +195,7 @@ function pollAllDocs() {
 
 function startPolling() {
     if (pollTimer) {
-        app.alert({cMsg: "轮循已在运行中。", cTitle: "提示", nIcon: 1});
+        // app.alert({cMsg: "轮循已在运行中。", cTitle: "提示", nIcon: 1}); // 启动时屏蔽提示
         return;
     }
     console.println("启动智能同步轮循...");
@@ -206,181 +207,120 @@ function stopPolling() {
         app.clearInterval(pollTimer);
         pollTimer = null;
         console.println("已停止智能同步轮循。");
-        app.alert({cMsg: "智能同步已停止。", cTitle: "提示", nIcon: 1});
+        app.alert({ cMsg: "智能同步已停止。", cTitle: "提示", nIcon: 1 });
     } else {
-        app.alert({cMsg: "当前没有运行的轮循。", cTitle: "提示", nIcon: 1});
+        app.alert({ cMsg: "当前没有运行的轮循。", cTitle: "提示", nIcon: 1 });
     }
 }
 
 // ===================================================================
-// 4. 手动导出按钮 (智能导出并激活同步)
+// 4. 核心功能函数
 // ===================================================================
+
+/**
+ * [原功能] 智能导出并激活 (导出到集中文件夹)
+ */
 function manualExportAndActivate(doc) {
     if (!doc || !doc.path) {
         app.alert({ cMsg: "请先保存PDF文件。", cTitle: "错误", nIcon: 0 });
         return;
     }
+    var xfdfPath = generateXfdfPath(doc.path); // 使用集中路径
+    activateSyncWithExport(doc, xfdfPath, "集中存储");
+}
 
-    // --- 【新增】路径检查逻辑 ---
-    var targetXfdfPath = "";
-    var configFolderExists = false;
-    
-    // 尝试读取配置文件夹路径（通过尝试读取一个可能不存在的文件来触发错误，从而判断目录是否存在）
-    // 或者如果你有更直接的判断文件夹存在的方法也可以替换这里
-    try {
-        // 假设 trustedReadFile 在路径不存在时会抛出异常或返回空
-        // 我们尝试构造一个测试路径，或者直接对目标路径进行操作前的预判
-        // 这里简单处理：直接尝试生成路径，然后在导出时捕获异常，或者预先测试
-        // 更好的方式是利用你的 trustedReadFile 尝试读取 ANNOTATION_FOLDER 根目录下的一个占位文件
-        // 这里我们采用一种简化的逻辑：假设路径无效，让用户选择
-        
-        var windowsPath = ANNOTATION_FOLDER.replace(/\\\\/g, "\\");
-        var unixPath = windowsPath.replace(/^([A-Z]):\\/, '/$1/');
-        if (!unixPath.endsWith("/")) { unixPath += "/"; }
-        
-        // 尝试列出目录或读取（取决于你的安全沙箱限制，通常直接检查比较困难）
-        // 这里我们采用“探测尝试”：尝试生成最终路径
-        var testPath = generateXfdfPath(doc.path);
-        
-        // 简单的 heuristic：检查路径是否包含 ANNOTATION_FOLDER
-        // 这里主要依赖 trustedReadFile 的异常或后续导出的异常
-        // 为了实现你的需求，我们主动抛出一个测试：
-        var testRead = "";
-        try {
-             // 尝试读取文件夹本身或其中任意文件，如果报错则可能不存在
-             // 注意：这在 JS 沙箱中可能受限，所以我们改为直接提示用户选择
-             // 这里我们假设如果 ANNOTATION_FOLDER 配置的是一个网络路径或脱机路径，可能不存在
-             testRead = trustedReadFile(unixPath); 
-        } catch (e) {
-             // 如果读取根目录报错，我们假定路径不存在
-             configFolderExists = false;
-        }
-        
-        // 如果无法确认路径存在（或者你想强制检查），弹出提示
-        // 这里的逻辑是：如果 trustedReadFile 无法读取该路径，则认为不存在
-        if (!testRead && !configFolderExists) {
-             // 可能是路径不存在，也可能是空文件夹，这里为了安全，我们询问用户
-             // 注意：如果文件夹存在但为空，trustedReadFile 可能也会失败，这正好触发我们的“备用方案”询问
-             
-             var response = app.alert({
-                cMsg: "配置的注释文件夹路径似乎不存在或无法访问：\n" + ANNOTATION_FOLDER + "\n\n是：改为将 XFDF 文件保存在当前 PDF 的同一路径下？\n否：取消导出操作。",
-                cTitle: "路径警告",
-                nIcon: 1, // 警告图标
-                nType: 2  // 是/否按钮
-             });
-             
-             if (response === 4) { // 用户点击"是"
-                 // 生成与 PDF 同路径的 XFDF 文件名
-                 var pdfPath = doc.path;
-                 var separatorIndex = pdfPath.lastIndexOf("/");
-                 var fileNameWithoutExt = pdfPath.substring(separatorIndex + 1, pdfPath.lastIndexOf("."));
-                 targetXfdfPath = pdfPath.substring(0, separatorIndex + 1) + fileNameWithoutExt + "_Annotations.xfdf";
-             } else {
-                 // 用户点击"否"，取消操作
-                 console.println("用户取消导出操作。");
-                 return;
-             }
-        } else {
-            // 路径存在，使用正常逻辑
-            targetXfdfPath = generateXfdfPath(doc.path);
-        }
-    } catch (e) {
-        console.println("路径检查出错: " + e.message);
-        // 出错时也询问用户
-        targetXfdfPath = generateXfdfPath(doc.path); // fallback to original logic or handle error
+/**
+ * [新增功能] 快速导出同名XFDF并激活 (导出到同级目录)
+ */
+function quickExportAndActivate(doc) {
+    if (!doc || !doc.path) {
+        app.alert({ cMsg: "请先保存PDF文件。", cTitle: "错误", nIcon: 0 });
+        return;
     }
-    // --- 【路径检查逻辑结束】 ---
+    var xfdfPath = generateSiblingXfdfPath(doc.path); // 使用同级路径
+    activateSyncWithExport(doc, xfdfPath, "同级目录");
+}
 
-    // 【修改】使用确定好的 targetXfdfPath
-    // var xfdfPath = generateXfdfPath(doc.path); // 原来的逻辑
-    var xfdfPath = targetXfdfPath; 
-
+/**
+ * [新增功能] 加载同级XFDF并激活
+ */
+function loadSiblingXFDF(doc) {
+    if (!doc || !doc.path) {
+        app.alert({ cMsg: "请先保存PDF文件。", cTitle: "错误", nIcon: 0 });
+        return;
+    }
+    var xfdfPath = generateSiblingXfdfPath(doc.path);
+    
     try {
-        var currentSnapshot = getAnnotationsSnapshot(doc);
-        
-        if (!currentSnapshot) {
-            console.println("当前文档没有任何注释，无需导出。");
-            app.alert({
-                cMsg: "当前文档中没有找到任何注释，无需操作。",
-                cTitle: "无需操作",
-                nIcon: 1
-            });
+        var xfdfContent = trustedReadFile(xfdfPath);
+        if (typeof xfdfContent !== "string" || xfdfContent.length === 0) {
+            app.alert({ cMsg: "未找到同级目录下的XFDF文件：\n" + xfdfPath, cTitle: "未找到文件", nIcon: 1 });
             return;
         }
-		
-        console.println("--- 当前注释快照 ---");
-        console.println(currentSnapshot);
-        console.println("--------------------");
+        
+        privImportXFDF(doc, xfdfPath);
+        activateSyncState(doc, xfdfPath); // 激活状态
+        doc.dirty = false;
+        app.alert({ cMsg: "成功加载XFDF并激活自动同步！\n\n" + xfdfPath, cTitle: "成功", nIcon: 1 });
+        
+    } catch (e) {
+        app.alert({ cMsg: "加载失败: " + e.message, cTitle: "错误", nIcon: 0 });
+    }
+}
 
+/**
+ * [核心辅助] 统一的导出并激活逻辑
+ */
+function activateSyncWithExport(doc, xfdfPath, modeName) {
+    try {
+        var currentSnapshot = getAnnotationsSnapshot(doc);
+        if (!currentSnapshot) {
+            app.alert({ cMsg: "当前文档没有任何注释，无需导出。", cTitle: "无需操作", nIcon: 1 });
+            return;
+        }
+        
+        // 检查旧文件是否存在并比较 (复用原逻辑)
         var oldSnapshot = "";
         var snapshotFileExists = false;
         try {
             var oldXfdfString = trustedReadFile(xfdfPath);
             oldSnapshot = parseXFDFToSnapshot(oldXfdfString);
             snapshotFileExists = true;
-            console.println("--- 从旧XFDF解析出的快照 ---");
-            console.println(oldSnapshot);
-            console.println("------------------------------");
-        } catch (e) {
-            console.println("未找到旧的XFDF文件，将执行首次导出。");
+        } catch (e) { /* 忽略错误，文件可能不存在 */ }
+
+        var shouldExport = true;
+        if (snapshotFileExists && currentSnapshot === oldSnapshot) {
+            var response = app.alert({ cMsg: "注释内容没有变化，是否仍要强制覆盖导出？", cTitle: "确认强制导出", nIcon: 2, nType: 2 });
+            if (response !== 4) shouldExport = false;
         }
 
-        if (!snapshotFileExists) {
-            console.println("比较结果：未找到旧文件，执行首次导出。");
+        if (shouldExport) {
             privExportXFDF(doc, xfdfPath);
-			doc.dirty = false; // <--- 【新增】首次导出后重置状态
-            console.println("成功！XFDF文件已导出。");
-            app.alert({
-                cMsg: "注释导出成功！\n\n文件已保存至:\n" + xfdfPath,
-                cTitle: "导出成功",
-                nIcon: 1
-            });
-        } else if (currentSnapshot !== oldSnapshot) {
-            console.println("比较结果：注释内容有变化，准备导出。");
-            privExportXFDF(doc, xfdfPath);
-			doc.dirty = false; // <--- 【新增】首次导出后重置状态
-            console.println("成功！XFDF文件已导出。");
-            app.alert({
-                cMsg: "注释导出成功！\n\n文件已保存至:\n" + xfdfPath,
-                cTitle: "导出成功",
-                nIcon: 1
-            });
-        } else {
-            console.println("比较结果：注释内容完全相同。");
-            var response = app.alert({
-                cMsg: "注释内容没有变化，是否仍要强制覆盖导出？",
-                cTitle: "确认强制导出",
-                nIcon: 2,
-                nType: 2
-            });
-
-            if (response === 4) {
-                console.println("用户选择强制导出，正在执行...");
-                privExportXFDF(doc, xfdfPath);
-				doc.dirty = false; // <--- 【新增】首次导出后重置状态
-                console.println("成功！XFDF文件已强制导出。");
-                app.alert({
-                    cMsg: "注释已强制导出！\n\n文件已保存至:\n" + xfdfPath,
-                    cTitle: "强制导出成功",
-                    nIcon: 1
-                });
-            } else {
-                console.println("用户取消导出操作。");
-            }
+            doc.dirty = false;
+            console.println("成功！XFDF已导出 (" + modeName + ")：" + xfdfPath);
         }
 
-        console.println("手动操作后，正在激活文档的自动同步...");
-        docSyncState.set(doc, {
-            isActive: true,
-            baselineSnapshot: getAnnotationsSnapshot(doc),
-            importChecked: false
-        });
-        console.println(">> 激活成功！状态已设置，等待下次轮循时开始监控。");
+        // 激活同步状态
+        activateSyncState(doc, xfdfPath);
+        app.alert({ cMsg: "操作成功！已开启自动同步。\n路径: " + xfdfPath, cTitle: "成功", nIcon: 1 });
 
     } catch (e) {
-        app.alert({ cMsg: "导出失败: " + e.message, cTitle: "导出失败", nIcon: 0 });
+        app.alert({ cMsg: "操作失败: " + e.message, cTitle: "错误", nIcon: 0 });
     }
 }
+
+/**
+ * [核心辅助] 设置激活状态 (新增 targetPath 属性)
+ */
+function activateSyncState(doc, xfdfPath) {
+    docSyncState.set(doc, {
+        isActive: true,
+        baselineSnapshot: getAnnotationsSnapshot(doc),
+        targetPath: xfdfPath // 关键：记录该文档对应的XFDF路径
+    });
+    console.println(">> 同步已激活，目标路径: " + xfdfPath);
+}
+
 
 function manualSetDirtyFalse(doc)
 {
@@ -450,15 +390,15 @@ app.addMenuItem({
     nRbPos: -1
 });
 
-app.addToolButton({
-    cName: 'exportAndActivatebutton',
-    cLabel: '导出并激活同步',
-    cIconID: 'cmd.comments.export',
-    cTooltext: '智能导出所有注释到同目录下的xfdf文件',
-    //cHotkey: 'Alt+Q',
-    cParent: 'Home',
-    cExec: 'manualExportAndActivate(this);'
-});
+// app.addToolButton({
+    // cName: 'exportAndActivatebutton',
+    // cLabel: '导出并激活同步',
+    // cIconID: 'cmd.comments.export',
+    // cTooltext: '智能导出所有注释到同目录下的xfdf文件',
+    // //cHotkey: 'Alt+Q',
+    // cParent: 'Home',
+    // cExec: 'manualExportAndActivate(this);'
+// });
 
 // 按钮: Ctrl+S提示（绑定Alt+Q的提示功能）
 app.addToolButton({
@@ -472,7 +412,28 @@ app.addToolButton({
 });
 
 
+// --- [新增] 按钮: 快速导出同名XFDF ---
+app.addToolButton({
+    cName: 'quickExportXFDF',
+    cUser: '导出同名XFDF并激活',
+    cLabel: '快速导出XFDF',
+    cTooltext: '导出XFDF到PDF同级目录，并开启自动保存',
+    cIconID: 'cmd.forms.exportData',
+    cExec: 'quickExportAndActivate(this);',
+    cParent: 'Home'
+});
+
+// --- [新增] 按钮: 加载同级XFDF ---
+app.addToolButton({
+    cName: 'loadXFDFMenu',
+    cUser: '加载同名XFDF并激活',
+    cLabel: '快速加载XFDF',
+    cTooltext: '加载PDF同级目录下的XFDF文件，并开启自动保存',
+    cIconID: 'cmd.forms.importData',
+    cExec: 'loadSiblingXFDF(this);',
+    cParent: 'Home'
+});
+
 // 启动监控！
 startPolling();
-
 // 脚本结束
