@@ -1,0 +1,30 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Package
+        run: |
+          mkdir -p dist/pkg
+          cp *.js *.json INSTALL.txt README.md LICENSE dist/pkg/
+          cp -r vx_images dist/pkg/
+          cd dist/pkg
+          zip -r "../myPDFxchangeAddon-${GITHUB_REF_NAME}.zip" .
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          generate_release_notes: true

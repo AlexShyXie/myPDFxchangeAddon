@@ -1,0 +1,52 @@
+myPDFxchangeAddon 安装说明
+============================
+
+一、环境要求
+------------
+- PDF-XChange Editor（外链功能需 10.3 以上版本）
+- 如果是绿色版安装，请先手动导入外链协议注册表（详见 README.md「外链」一节）
+
+
+二、安装目录
+------------
+把脚本放入 PDF-XChange Editor 的 JavaScripts 目录（任选其一）：
+
+  用户级（推荐，无需管理员权限）：
+    %APPDATA%\Tracker Software\PDFXEditor\JavaScripts
+    （在资源管理器地址栏直接粘贴上面这行回车即可打开）
+
+  应用级（所有用户共享）：
+    <PDF-XChange Editor 安装目录>\JavaScripts
+
+
+三、安装步骤
+------------
+1. 解压本压缩包；
+2. 将全部 .js 文件和 translationData.bkmNameReg.json 复制到上述
+   JavaScripts 目录；
+3. 重启 PDF-XChange Editor。
+
+注意：
+- 以下 3 个文件是公共依赖库，文件名开头的数字（1、2）用于保证
+  它们先于其他插件加载，请勿改名、勿删除：
+      1ang.js                  （翻译函数 __()）
+      1xutil.source.js         （xutil 工具集）
+      2xutil.colorUtils.js     （xutil.ClrUtx 颜色工具）
+- 其余 .js 均为独立插件，可按需只装想要的（先装上面 3 个库）；
+- myAppConfig.json 是作者的应用配置备份，供参考，不需要放入
+  JavaScripts 目录；
+- 各插件的功能与快捷键详见 README.md。
+
+
+四、从旧版本升级
+----------------
+1. 升级前请先删除 JavaScripts 目录里的旧版文件，再复制新版文件，
+   否则新旧同名/换名文件会同时生效，导致按钮、快捷键重复注册；
+2. 文件改名对照（新版不再使用含空格的文件名）：
+      旧: find replace annot tx v1.2.1.js
+      新: find_replace_annot_tx_v1.2.1.js
+      旧: SavewithoutAnnots v1.js
+      新: SavewithoutAnnots_v1.js
+3. 「笔记文件夹自动导入导出」插件从 v4 升级到 v5 时，同样必须先
+   删除旧版 v4 脚本文件，避免按钮与轮循任务重复注册；
+4. 重启 PDF-XChange Editor 生效。
