@@ -1,41 +1,6 @@
 这是我的pdf xchange脚本插件库，虽然是脚本，但是可以插入按钮、界面等，和插件功能很像了，这是pdf xchange强大之处。
-# 1. 环境要求
-- PDF-XChange Editor 10.3+
-- JavaScript 支持
 
-使用方式就是将相关js文件放入PDF-Xchange Editor 的脚本文件夹，即PDFedit.exe下的JavaScripts文件夹下，没有这个文件夹就创建出来。
 
-# 2. 下载与安装
-
-## 下载
-- **推荐**：到 [Releases](../../releases) 页面下载最新的 `myPDFxchangeAddon-v*.zip` 全量包，解压后包含全部脚本、配置文件与 `INSTALL.txt` 安装说明
-- 或按需直接下载本仓库中的单个脚本文件
-
-## 安装目录
-将 `.js` 文件和 `translationData.bkmNameReg.json` 复制到 PDF-XChange Editor 的 JavaScripts 目录：
-
-- **应用级**：`<PDF-XChange Editor 安装目录>\JavaScripts`（即 PDFXEdit.exe 所在目录下，没有就新建）
-
-复制后重启 PDF-XChange Editor 生效。
-
-## 公共依赖库（必装）
-以下 3 个库文件，文件名开头的数字用于保证它们**先于其他插件加载**，请勿改名、勿删除：
-
-- `1ang.js` — 翻译函数 `__()`
-- `1xutil.source.js` — xutil 工具集（定时器、PXE 宏、书签等）
-- `2xutil.colorUtils.js` — xutil.ClrUtx 颜色函数与对话框
-
-其余 `.js` 均为独立插件，可按需安装。更详细的安装说明见发布包内 `INSTALL.txt`。
-
-## 从旧版升级 / 文件改名对照
-新版已将含空格的文件名规范为下划线。升级时请**先删除 JavaScripts 目录里的旧文件，再复制新文件**，否则新旧文件同时加载会导致按钮、快捷键重复注册：
-
-| 旧文件名 | 新文件名 |
-|---|---|
-| find replace annot tx v1.2.1.js | find_replace_annot_tx_v1.2.1.js |
-| SavewithoutAnnots v1.js | SavewithoutAnnots_v1.js |
-
-「笔记文件夹自动导入导出」从 v4 升级到 v5 同理，必须先删除旧版 v4 文件。
 
 # Version5设置笔记文件夹自动导入导出
 插件文件：
@@ -254,3 +219,48 @@ find_replace_annot_tx_v1.2.1.js
 一键另存一份不含任何注释的 PDF 副本（默认文件名后缀 `[clean]`，可自定义）：点击 "Save NA" 工具按钮，选择保存位置后自动复制当前文档、删除副本中的全部注释并保存，原文件不受影响。
 
 [viewtopic.php?t=44737](https://forum.pdf-xchange.com/viewtopic.php?t=44737)
+
+
+
+# 环境要求
+
+- PDF-XChange Editor 10.3+
+- JavaScript 支持
+
+使用方式就是将相关js文件放入PDF-Xchange Editor 的脚本文件夹，即PDFedit.exe下的JavaScripts文件夹下，没有这个文件夹就创建出来。
+
+# 下载与安装
+
+## 下载
+
+- **推荐**：到 [Releases](../../releases) 页面下载最新的 `myPDFxchangeAddon-v*.zip` 全量包，解压后包含全部脚本、配置文件与 `INSTALL.txt` 安装说明
+- 或按需直接下载本仓库中的单个脚本文件
+
+## 安装目录
+
+将 `.js` 文件和 `translationData.bkmNameReg.json` 复制到 PDF-XChange Editor 的 JavaScripts 目录：
+
+- **应用级**：`<PDF-XChange Editor 安装目录>\JavaScripts`（即 PDFXEdit.exe 所在目录下，没有就新建）
+
+复制后重启 PDF-XChange Editor 生效。
+
+## 公共依赖库（必装）
+
+以下 3 个库文件，文件名开头的数字用于保证它们**先于其他插件加载**，请勿改名、勿删除：
+
+- `1ang.js` — 翻译函数 `__()`
+- `1xutil.source.js` — xutil 工具集（定时器、PXE 宏、书签等）
+- `2xutil.colorUtils.js` — xutil.ClrUtx 颜色函数与对话框
+
+其余 `.js` 均为独立插件，可按需安装。更详细的安装说明见发布包内 `INSTALL.txt`。
+
+## 从旧版升级 / 文件改名对照
+
+新版已将含空格的文件名规范为下划线。升级时请**先删除 JavaScripts 目录里的旧文件，再复制新文件**，否则新旧文件同时加载会导致按钮、快捷键重复注册：
+
+| 旧文件名                        | 新文件名                        |
+| ------------------------------- | ------------------------------- |
+| find replace annot tx v1.2.1.js | find_replace_annot_tx_v1.2.1.js |
+| SavewithoutAnnots v1.js         | SavewithoutAnnots_v1.js         |
+
+「笔记文件夹自动导入导出」从 v4 升级到 v5 同理，必须先删除旧版 v4 文件。
